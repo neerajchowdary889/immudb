@@ -1,17 +1,21 @@
 Approach for parallelizing conditional row filtering
+
 1. Understand constraints
 Thread safety: The underlying rowReader may not be safe for concurrent access.
 Ordering: If ORDER BY is present, preserve row order.
 Interface contract: Read() is sequential; parallelization must be internal.
 Resource limits: Bound concurrency to avoid excessive goroutines.
+
 2. Recommended pattern: buffered pipeline with worker pool
 Architecture
 Row Source → Buffer → Worker Pool (condition evaluation) → Result Queue → Sequential Read()
 Components
+
 A. Prefetch buffer
 Use a channel or buffer to prefetch rows from the underlying reader.
 Single goroutine reads from rowReader and enqueues rows.
 Bounded buffer to control memory.
+
 B. Worker pool
 Fixed-size pool of workers (e.g., runtime.NumCPU() or configurable).
 Each worker:
@@ -19,13 +23,16 @@ Takes a row from the buffer.
 Substitutes parameters.
 Evaluates the condition.
 Enqueues results (row + boolean) to a results channel.
+
 C. Result aggregator
 Collects evaluated results.
 If ordering matters, use a priority queue or sequence numbers to maintain order.
 If ordering doesn’t matter, return results as they complete.
+
 D. Sequential interface
 Read() pulls from the result queue and returns matching rows.
 Maintains the same interface contract.
+
 3. Design decisions
 Decision 1: When to parallelize
 Only if the underlying reader supports concurrent access, or use a single reader with buffering.
@@ -42,6 +49,7 @@ On error, cancel remaining work and return the error.
 Decision 5: Context cancellation
 Respect context.Context for cancellation.
 Cancel all workers when context is done.
+
 4. Implementation steps
 Initialize phase
 Create buffered channels (input buffer, results queue, error channel).
@@ -63,6 +71,7 @@ Cleanup
 Close channels when done.
 Wait for workers to finish.
 Close the underlying reader.
+
 5. Performance considerations
 Bottleneck analysis
 If condition evaluation is expensive, parallelization helps.
@@ -73,18 +82,21 @@ Consider backpressure if the consumer is slow.
 Tuning
 Make worker pool size configurable.
 Monitor throughput and adjust.
+
 6. Alternative: simpler approach
 If full parallelization is complex:
 Keep sequential reading.
 Use a small buffer (e.g., 10–100 rows).
 Evaluate conditions in batches with goroutines.
 Return results in order.
+
 7. Testing strategy
 Verify thread safety of the underlying reader.
 Test with various condition complexities.
 Measure performance vs. sequential version.
 Test error propagation and cancellation.
 Verify ordering when required.
+
 8. When not to parallelize
 Simple conditions (overhead may outweigh benefit).
 Small result sets.
