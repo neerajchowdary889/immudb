@@ -3613,6 +3613,11 @@ func (stmt *SelectStmt) genScanSpecs(tx *SQLTx, params map[string]interface{}) (
 	var sortingIndex *Index
 	if preferredIndex == nil {
 		sortingIndex = stmt.selectSortingIndex(groupByCols, orderByCols, table, rangesByColID)
+
+		// If no sorting index found, try to find an index for filtering (WHERE clause)
+		if sortingIndex == nil {
+			sortingIndex = stmt.selectFilteringIndex(table, rangesByColID)
+		}
 	} else {
 		sortingIndex = preferredIndex
 	}
@@ -3664,6 +3669,52 @@ func (stmt *SelectStmt) selectSortingIndex(groupByCols, orderByCols []*OrdExp, t
 		}
 	}
 	return nil
+}
+
+// selectFilteringIndex selects the best index for filtering based on WHERE clause conditions
+// when no sorting index is available (no ORDER BY or GROUP BY)
+func (stmt *SelectStmt) selectFilteringIndex(table *Table, rangesByColID map[uint32]*typedValueRange) *Index {
+	if len(rangesByColID) == 0 {
+		// No WHERE conditions, can't select an index for filtering
+		return nil
+	}
+
+	var bestIndex *Index
+	var bestScore int
+
+	// Score each index based on how many prefix columns have constraints
+	for _, idx := range table.indexes {
+		if idx.IsPrimary() {
+			// Skip primary index - it's the default fallback anyway
+			continue
+		}
+
+		score := 0
+		// Check how many leading columns of this index have constraints
+		for _, col := range idx.cols {
+			colRange, hasConstraint := rangesByColID[col.id]
+			if !hasConstraint {
+				// No constraint on this column - stop here
+				// (indexes can only be used efficiently from the prefix)
+				break
+			}
+
+			// Give higher score to equality constraints (more selective)
+			if colRange.unitary() {
+				score += 10 // Equality constraint
+			} else {
+				score += 5 // Range constraint
+			}
+		}
+
+		// Select the index with the highest score
+		if score > bestScore {
+			bestScore = score
+			bestIndex = idx
+		}
+	}
+
+	return bestIndex
 }
 
 func (stmt *SelectStmt) getPreferredIndex(table *Table) (*Index, error) {
