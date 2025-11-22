@@ -24,7 +24,7 @@ import (
 
 	"github.com/codenotary/immudb/pkg/api/schema"
 	"github.com/codenotary/immudb/pkg/client"
-	"github.com/olekukonko/tablewriter"
+	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 func (i *immuc) SQLExec(args []string) (string, error) {
@@ -98,29 +98,37 @@ func (i *immuc) DescribeTable(args []string) (string, error) {
 	return response.(string), nil
 }
 
+
 func renderTableResult(resp *schema.SQLQueryResult) string {
 	if resp == nil {
 		return ""
 	}
-	result := bytes.NewBuffer([]byte{})
-	consoleTable := tablewriter.NewWriter(result)
-	cols := make([]string, len(resp.Columns))
+
+	buf := &bytes.Buffer{}
+	tw := table.NewWriter()
+	tw.SetOutputMirror(buf)
+
+	// Headers
+	cols := make(table.Row, len(resp.Columns))
 	for i, c := range resp.Columns {
 		cols[i] = c.Name
 	}
-	consoleTable.SetHeader(cols)
+	tw.AppendHeader(cols)
 
+	// Rows
 	for _, r := range resp.Rows {
-		row := make([]string, len(r.Values))
-
+		row := make(table.Row, len(r.Values))
 		for i, v := range r.Values {
 			row[i] = schema.RenderValue(v.Value)
 		}
-
-		consoleTable.Append(row)
+		tw.AppendRow(row)
 	}
 
-	consoleTable.SetAutoFormatHeaders(false)
-	consoleTable.Render()
-	return result.String()
+	// Optional: disable auto-formatting if you want raw exact headers
+	// Keep the default style to avoid referencing undefined constants (e.g. text.FormatNone)
+	// If you need a custom header formatter, set it using the API provided by go-pretty/table/text.
+
+	tw.Render()
+
+	return buf.String()
 }

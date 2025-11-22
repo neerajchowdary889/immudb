@@ -16,10 +16,10 @@ require (
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jaswdr/faker v1.19.1
+	github.com/jedib0t/go-pretty/v6 v6.7.5
 	github.com/lib/pq v1.10.9
 	github.com/mattn/goveralls v0.0.12
 	github.com/o1egl/paseto v1.0.0
-	github.com/olekukonko/tablewriter v1.1.1
 	github.com/ory/go-acc v0.2.8
 	github.com/peterh/liner v1.2.2
 	github.com/prometheus/client_golang v1.23.2
@@ -56,8 +56,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/clipperhouse/displaywidth v0.3.1 // indirect
-	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -93,9 +91,6 @@ require (
 	github.com/mwitkow/go-proto-validators v0.0.0-20180403085117-0950a7990007 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/oapi-codegen/runtime v1.0.0 // indirect
-	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
-	github.com/olekukonko/errors v1.1.0 // indirect
-	github.com/olekukonko/ll v0.1.2 // indirect
 	github.com/ory/viper v1.7.5 // indirect
 	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
