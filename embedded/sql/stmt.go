@@ -3680,12 +3680,41 @@ func (stmt *SelectStmt) selectFilteringIndex(table *Table, rangesByColID map[uin
 	}
 
 	var bestIndex *Index
-	var bestScore int
 
-	// Score each index based on how many prefix columns have constraints
+	// OPTIMIZATION: First check for perfect single-column index matches
+	// Example: WHERE transactionHash = ? should immediately use index on (transactionHash)
 	for _, idx := range table.indexes {
 		if idx.IsPrimary() {
-			// Skip primary index - it's the default fallback anyway
+			continue
+		}
+
+		// Check if this is a single-column index with an exact match
+		if len(idx.cols) == 1 {
+			col := idx.cols[0]
+			if colRange, hasConstraint := rangesByColID[col.id]; hasConstraint {
+				// Found exact match! Use it immediately
+				// Prefer equality constraints over ranges for single-column indexes
+				if colRange.unitary() {
+					return idx // Perfect match - return immediately!
+				}
+				// Still a good match for range queries, but keep looking for equality
+				if bestIndex == nil {
+					bestIndex = idx
+				}
+			}
+		}
+	}
+
+	// If we found a single-column range match, return it
+	if bestIndex != nil {
+		return bestIndex
+	}
+
+	// No perfect single-column match found, now score multi-column indexes
+	var bestScore int
+
+	for _, idx := range table.indexes {
+		if idx.IsPrimary() {
 			continue
 		}
 
