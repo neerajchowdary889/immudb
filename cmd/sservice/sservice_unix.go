@@ -53,8 +53,7 @@ type sservice struct {
 
 // NewDaemon ...
 func (ss *sservice) NewDaemon(serviceName string, description string, dependencies ...string) (d daemon.Daemon, err error) {
-	ep, _ := ss.GetDefaultExecPath(serviceName)
-	d, err = daemon.New(serviceName, description, ep, dependencies...)
+	d, err = daemon.New(serviceName, description, daemon.SystemDaemon, dependencies...)
 	d.SetTemplate(ss.options.StartUpConfig)
 	return d, err
 }
