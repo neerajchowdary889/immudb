@@ -3613,6 +3613,11 @@ func (stmt *SelectStmt) genScanSpecs(tx *SQLTx, params map[string]interface{}) (
 	var sortingIndex *Index
 	if preferredIndex == nil {
 		sortingIndex = stmt.selectSortingIndex(groupByCols, orderByCols, table, rangesByColID)
+
+		// If no sorting index found, try to find an index for filtering (WHERE clause)
+		if sortingIndex == nil {
+			sortingIndex = stmt.selectFilteringIndex(table, rangesByColID)
+		}
 	} else {
 		sortingIndex = preferredIndex
 	}
@@ -3664,6 +3669,81 @@ func (stmt *SelectStmt) selectSortingIndex(groupByCols, orderByCols []*OrdExp, t
 		}
 	}
 	return nil
+}
+
+// selectFilteringIndex selects the best index for filtering based on WHERE clause conditions
+// when no sorting index is available (no ORDER BY or GROUP BY)
+func (stmt *SelectStmt) selectFilteringIndex(table *Table, rangesByColID map[uint32]*typedValueRange) *Index {
+	if len(rangesByColID) == 0 {
+		// No WHERE conditions, can't select an index for filtering
+		return nil
+	}
+
+	var bestIndex *Index
+
+	// OPTIMIZATION: First check for perfect single-column index matches
+	// Example: WHERE transactionHash = ? should immediately use index on (transactionHash)
+	for _, idx := range table.indexes {
+		if idx.IsPrimary() {
+			continue
+		}
+
+		// Check if this is a single-column index with an exact match
+		if len(idx.cols) == 1 {
+			col := idx.cols[0]
+			if colRange, hasConstraint := rangesByColID[col.id]; hasConstraint {
+				// Found exact match! Use it immediately
+				// Prefer equality constraints over ranges for single-column indexes
+				if colRange.unitary() {
+					return idx // Perfect match - return immediately!
+				}
+				// Still a good match for range queries, but keep looking for equality
+				if bestIndex == nil {
+					bestIndex = idx
+				}
+			}
+		}
+	}
+
+	// If we found a single-column range match, return it
+	if bestIndex != nil {
+		return bestIndex
+	}
+
+	// No perfect single-column match found, now score multi-column indexes
+	var bestScore int
+
+	for _, idx := range table.indexes {
+		if idx.IsPrimary() {
+			continue
+		}
+
+		score := 0
+		// Check how many leading columns of this index have constraints
+		for _, col := range idx.cols {
+			colRange, hasConstraint := rangesByColID[col.id]
+			if !hasConstraint {
+				// No constraint on this column - stop here
+				// (indexes can only be used efficiently from the prefix)
+				break
+			}
+
+			// Give higher score to equality constraints (more selective)
+			if colRange.unitary() {
+				score += 10 // Equality constraint
+			} else {
+				score += 5 // Range constraint
+			}
+		}
+
+		// Select the index with the highest score
+		if score > bestScore {
+			bestScore = score
+			bestIndex = idx
+		}
+	}
+
+	return bestIndex
 }
 
 func (stmt *SelectStmt) getPreferredIndex(table *Table) (*Index, error) {
